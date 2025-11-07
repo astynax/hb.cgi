@@ -1,0 +1,19 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Example</title>
+    <meta charset="utf-8" />
+    <style>
+      body {
+        font-size: 2em;
+      }
+    </style>
+  </head>
+  <body>
+    <ul>
+      {{ #each greetings }}
+      <li>{{ greeting }}, {{ who }}!</li>
+      {{ /each }}
+    </ul>
+  </body>
+</html>

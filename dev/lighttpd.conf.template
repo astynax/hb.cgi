@@ -1,0 +1,12 @@
+# -*- mode:conf -*-
+
+server.document-root = "$PWD/dev/"
+server.port = 8000
+server.modules = ( "mod_cgi" )
+
+$HTTP["url"] =~ "^/hb.cgi" {
+  cgi.assign = ( "" => "" )
+}
+
+static-file.exclude-extensions = ( ".cgi" )
+index-file.names = ( "index.html" )
