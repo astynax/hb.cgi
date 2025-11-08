@@ -5,10 +5,10 @@ use handlebars;
 use http;
 use serde_json;
 use ureq;
-use url;
+use url::form_urlencoded as url;
 
-fn get_param(url: &url::Url, name: &str) -> Option<String> {
-    url.query_pairs()
+fn get_param(url: &url::Parse, name: &str) -> Option<String> {
+    url.clone()
         .find(|(k, _)| k == name)
         .map(|(_, v)| v.into_owned())
 }
@@ -84,12 +84,11 @@ fn main() {
                 "Method not allowed"
             )
         };
-        // TODO: ugly hack, need to make it properly!
-        let query = format!("http://mock{}", request.uri());
-        let url = url::Url::parse( query.as_str()).unwrap();
+        let query = request.uri().query().unwrap_or("");
+        let params = url::parse(query.as_bytes());
 
-        let template_url = get_param(&url, "t");
-        let data_url = get_param(&url, "d");
+        let template_url = get_param(&params, "t");
+        let data_url = get_param(&params, "d");
         if template_url.is_none() || data_url.is_none() {
             return cgi::text_response(
                 cgi::http::StatusCode::BAD_REQUEST,
