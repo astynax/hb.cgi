@@ -1,3 +1,5 @@
+#![allow(clippy::single_component_path_imports)]
+
 use std::time::Duration;
 
 use cgi;
