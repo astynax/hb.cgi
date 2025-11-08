@@ -5,50 +5,55 @@ use reqwest::blocking as req;
 use http;
 use url;
 
-// TODO: try 'ureq'
-
 fn get_param(url: &url::Url, name: &str) -> Option<String> {
     url.query_pairs()
         .find(|(k, _)| k == name)
         .map(|(_, v)| v.into_owned())
 }
 
-fn fetch(url: &str) -> Result<req::Response, cgi::Response> {
+struct CgiResult {
+    status_code: http::StatusCode,
+    body: String
+}
+
+type Cgi<T> = Result<T, CgiResult>;
+
+fn fetch(url: &str) -> Cgi<req::Response> {
     req::get(url).map_err(|err| {
-        cgi::text_response(
-            err.status().unwrap(),
-            err.without_url().to_string(),
-        )
+        CgiResult {
+            status_code: err.status().unwrap(),
+            body: err.without_url().to_string(),
+        }
     })
 }
 
 trait ToCgi<T> {
-    fn to_cgi(self) -> Result<T, cgi::Response>;
+    fn to_cgi(self) -> Cgi<T>;
 }
 
 impl <T> ToCgi<T> for Result<T, reqwest::Error> {
-    fn to_cgi(self) -> Result<T, cgi::Response> {
+    fn to_cgi(self) -> Cgi<T> {
         self.map_err(|err| {
-            cgi::text_response(
-            http::StatusCode::BAD_REQUEST,
-            err.without_url().to_string()
-            )
+            CgiResult {
+                status_code: http::StatusCode::BAD_REQUEST,
+                body: err.without_url().to_string(),
+            }
         })
     }
 }
 
 impl <T> ToCgi<T> for Result<T, handlebars::RenderError> {
-    fn to_cgi(self) -> Result<T, cgi::Response> {
+    fn to_cgi(self) -> Cgi<T> {
         self.map_err(|err| {
-            cgi::text_response(
-            http::StatusCode::BAD_REQUEST,
-            err.to_string()
-            )
+            CgiResult {
+                status_code: http::StatusCode::BAD_REQUEST,
+                body: err.to_string(),
+            }
         })
     }
 }
 
-fn process(template_url: &str, data_url: &str) -> Result<String, cgi::Response> {
+fn process(template_url: &str, data_url: &str) -> Cgi<String> {
     let template = fetch(template_url)?.text().to_cgi()?;
     let data: serde_json::Value = fetch(data_url)?.json().to_cgi()?;
     let hb = handlebars::Handlebars::new();
@@ -79,8 +84,8 @@ fn main() {
             template_url.unwrap().as_str(),
             data_url.unwrap().as_str()
         ) {
-            Ok(result) => cgi::html_response(http::StatusCode::OK, result),
-            Err(res) => res,
+            Ok(body) => cgi::html_response(http::StatusCode::OK, body),
+            Err(res) => cgi::text_response(res.status_code, res.body)
         }
     }})
 }
