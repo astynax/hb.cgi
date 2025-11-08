@@ -1,8 +1,10 @@
+use std::time::Duration;
+
 use cgi;
 use handlebars;
-use serde_json;
-use reqwest::blocking as req;
 use http;
+use serde_json;
+use ureq;
 use url;
 
 fn get_param(url: &url::Url, name: &str) -> Option<String> {
@@ -18,25 +20,27 @@ struct CgiResult {
 
 type Cgi<T> = Result<T, CgiResult>;
 
-fn fetch(url: &str) -> Cgi<req::Response> {
-    req::get(url).map_err(|err| {
-        CgiResult {
-            status_code: err.status().unwrap(),
-            body: err.without_url().to_string(),
-        }
-    })
+fn fetch(agent: &ureq::Agent, url: &str) -> Cgi<http::Response<ureq::Body>> {
+    agent.get(url).call().to_cgi()
 }
 
 trait ToCgi<T> {
     fn to_cgi(self) -> Cgi<T>;
 }
 
-impl <T> ToCgi<T> for Result<T, reqwest::Error> {
+impl <T> ToCgi<T> for Result<T, ureq::Error> {
     fn to_cgi(self) -> Cgi<T> {
         self.map_err(|err| {
-            CgiResult {
-                status_code: http::StatusCode::BAD_REQUEST,
-                body: err.without_url().to_string(),
+            if let ureq::Error::StatusCode(code) = err {
+                CgiResult {
+                    status_code: http::StatusCode::from_u16(code).unwrap(),
+                    body: err.to_string()
+                }
+            } else {
+                CgiResult {
+                    status_code: http::StatusCode::INTERNAL_SERVER_ERROR,
+                    body: "Something went wrong".to_string(),
+                }
             }
         })
     }
@@ -54,10 +58,22 @@ impl <T> ToCgi<T> for Result<T, handlebars::RenderError> {
 }
 
 fn process(template_url: &str, data_url: &str) -> Cgi<String> {
-    let template = fetch(template_url)?.text().to_cgi()?;
-    let data: serde_json::Value = fetch(data_url)?.json().to_cgi()?;
+    let agent = prepare_agent();
+    let template = fetch(&agent, template_url)?
+        .body_mut().read_to_string().to_cgi()?;
+    let data = fetch(&agent, data_url)?
+        .body_mut().read_json::<serde_json::Value>().to_cgi()?;
     let hb = handlebars::Handlebars::new();
     hb.render_template(template.as_str(), &data).to_cgi()
+}
+
+#[inline]
+fn prepare_agent() -> ureq::Agent {
+    ureq::Agent::config_builder()
+        .http_status_as_error(true)
+        .timeout_global(Some(Duration::from_secs(1)))
+        .build()
+        .into()
 }
 
 fn main() {
