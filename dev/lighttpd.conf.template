@@ -1,6 +1,6 @@
 # -*- mode:conf -*-
 
-server.document-root = "$PWD/dev/"
+server.document-root = "xROOT/dev/"
 server.port = 8000
 server.modules = ( "mod_cgi" )
 
