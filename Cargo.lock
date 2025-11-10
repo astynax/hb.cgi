@@ -303,6 +303,7 @@ dependencies = [
  "cgi",
  "handlebars",
  "http",
+ "serde",
  "serde_json",
  "ureq",
  "url",

@@ -1,0 +1,23 @@
+body {
+  font-size: large;
+}
+
+form {
+  display: flex;
+  flex-direction: column;
+}
+
+label {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+form > button {
+  max-width: 100px;
+}
+
+form > label > textarea {
+  font-family: monospace;
+  min-height: 200px;
+}

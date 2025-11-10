@@ -4,7 +4,7 @@ server.document-root = "xROOT/dev/"
 server.port = 8000
 server.modules = ( "mod_cgi" )
 
-$HTTP["url"] =~ "^/(hb|echo).cgi" {
+$HTTP["url"] =~ "^/(hb|echo|get2post).cgi" {
   cgi.assign = ( "" => "" )
 }
 

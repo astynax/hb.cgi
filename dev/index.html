@@ -1,8 +1,14 @@
 <html>
+  <head>
+    <link rel="stylesheet" href="styles.css" type="text/css" media="screen" />
+  </head>
   <body>
+    <header>
+      <h1>Handlebars CGI</h1>
+    </header>
     <section>
       <header>
-        <h2>Just GET</h2>
+        <h2>GET → GET</h2>
       </header>
       <form method="GET" action="hb.cgi">
         <label>
@@ -10,7 +16,7 @@
           <input name="t" value="http://localhost:8000/greetings.html">
         </label>
         <label>
-          Data URL:
+          Data URL to GET from:
           <input name="d" value="http://localhost:8000/greetings.json">
         </label>
         <button type="submit">Go</button>
@@ -18,20 +24,29 @@
     </section>
     <section>
       <header>
-        <h2>POST query-encoded JSON</h2>
+        <h2>GET → POST (using get2post.cgi)</h2>
       </header>
-      <form method="GET" action="hb.cgi">
+      <form method="POST" action="get2post.cgi">
         <label>
           Template URL:
-          <input name="t" value="http://localhost:8000/greeting.html">
+          <input name="t" value="http://localhost:8000/greetings.html">
         </label>
         <label>
-          Data URL:
+          Data URL to POST to:
           <input name="d" value="http://localhost:8000/echo.cgi">
         </label>
         <label>
           Data request body (JSON):
-          <input name="b" value='{"greeting": "Hello", "who": "world"}'>
+          <textarea name="b">
+{
+  "greetings": [
+    {
+      "greeting": "Hello",
+      "who": "World"
+    }
+  ]
+}
+          </textarea>
         </label>
         <button type="submit">Go</button>
       </form>

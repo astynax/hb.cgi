@@ -1,0 +1,26 @@
+<html>
+  <head>
+    <link rel="stylesheet" href="styles.css" type="text/css" media="screen" />
+  </head>
+  <body>
+    <header>
+      <a href="/">← go back</a>
+    </header>
+    <section>
+      <header>
+        <h2>get2post'ed</h2>
+      </header>
+      <form method="POST" action="hb.cgi">
+        <label>
+          Template URL:
+          <input name="t" value="xT">
+        </label>
+        <label>
+          Data URL to GET from:
+          <textarea name="d">http://localhost:8000/get2post.cgi?d=xD&b=xB</textarea>
+        </label>
+        <button type="submit">Go</button>
+      </form>
+    </section>
+  </body>
+</html>

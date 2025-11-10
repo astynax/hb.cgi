@@ -5,9 +5,13 @@ use std::time::Duration;
 use cgi;
 use handlebars;
 use http;
+use serde;
 use serde_json;
 use ureq;
 use url::form_urlencoded as url;
+
+const X_CGI_CONTENT_TYPE: http::header::HeaderName =
+    http::header::HeaderName::from_static("x-cgi-content-type");
 
 fn get_param(url: &url::Parse, name: &str) -> Option<String> {
     url.clone()
@@ -32,6 +36,13 @@ fn fetch(agent: &ureq::Agent, url: &str) -> Cgi<http::Response<ureq::Body>> {
 
 trait ToCgi<T> {
     fn to_cgi(self) -> Cgi<T>;
+}
+
+fn bad_media() -> CgiResult {
+    CgiResult {
+        status_code: http::StatusCode::UNSUPPORTED_MEDIA_TYPE,
+        body: "Request body should be a UTF-8 encoded JSON/Form data".to_string(),
+    }
 }
 
 impl <T> ToCgi<T> for Result<T, ureq::Error> {
@@ -63,15 +74,72 @@ impl <T> ToCgi<T> for Result<T, handlebars::RenderError> {
     }
 }
 
-fn process(template_url: &str, data_url: &str)
-           -> Cgi<String> {
-    let agent = prepare_agent();
-    let template = fetch(&agent, template_url)?
-        .body_mut().read_to_string().to_cgi()?;
-    let data = fetch(&agent, data_url)?
-        .body_mut().read_json::<serde_json::Value>().to_cgi()?;
-    let hb = handlebars::Handlebars::new();
-    hb.render_template(template.as_str(), &data).to_cgi()
+impl <T> ToCgi<T> for Result<T, std::str::Utf8Error> {
+    fn to_cgi(self) -> Cgi<T> {
+        self.map_err(|_| bad_media())
+    }
+}
+
+impl <T> ToCgi<T> for Result<T, serde_json::Error> {
+    fn to_cgi(self) -> Cgi<T> {
+        self.map_err(|_| {
+            CgiResult {
+                status_code: http::StatusCode::BAD_REQUEST,
+                body: "Incorrect JSON".to_string(),
+            }
+        })
+    }
+}
+
+#[derive(serde::Deserialize)]
+struct Params {
+    #[serde(rename(deserialize = "t"))]
+    template_url: String,
+    #[serde(rename(deserialize = "d"))]
+    data_url: String,
+}
+
+impl Params {
+    fn process(self)
+               -> Cgi<String> {
+        let agent = prepare_agent();
+        let template = fetch(&agent, self.template_url.as_str())?
+            .body_mut().read_to_string().to_cgi()?;
+        let data = fetch(&agent, self.data_url.as_str())?
+            .body_mut().read_json::<serde_json::Value>().to_cgi()?;
+        let hb = handlebars::Handlebars::new();
+        hb.render_template(template.as_str(), &data).to_cgi()
+    }
+
+    #[inline]
+    fn from_urlencoded(query: &str) -> Cgi<Params> {
+        let params = url::parse(query.as_bytes());
+        let template_url = get_param(&params, "t");
+        let data_url = get_param(&params, "d");
+        if template_url.is_none() || data_url.is_none() {
+            return Err(CgiResult {
+                status_code: cgi::http::StatusCode::BAD_REQUEST,
+                body: "Bad request".to_string(),
+            });
+        };
+        Ok(Params {
+            template_url: template_url.unwrap(),
+            data_url: data_url.unwrap(),
+        })
+    }
+
+    #[inline]
+    fn from_json_body(body: &[u8]) -> Cgi<Params> {
+        let decoded = std::str::from_utf8(body).to_cgi()?;
+        let parsed: Params = serde_json::from_str(decoded).to_cgi()?;
+        Ok(parsed)
+    }
+
+    #[inline]
+    fn from_form_body(body: &[u8]) -> Cgi<Params> {
+        let decoded = std::str::from_utf8(body).to_cgi()?;
+        Params::from_urlencoded(decoded)
+    }
 }
 
 #[inline]
@@ -83,32 +151,52 @@ fn prepare_agent() -> ureq::Agent {
         .into()
 }
 
-fn main() {
-    cgi::handle({ |request: cgi::Request| -> cgi::Response {
-        if request.method() != http::Method::GET {
-            return cgi::text_response(
-                http::StatusCode::METHOD_NOT_ALLOWED,
-                "Method not allowed"
-            )
-        };
-        let query = request.uri().query().unwrap_or("");
-        let params = url::parse(query.as_bytes());
-
-        let template_url = get_param(&params, "t");
-        let data_url = get_param(&params, "d");
-        if template_url.is_none() || data_url.is_none() {
-            return cgi::text_response(
-                cgi::http::StatusCode::BAD_REQUEST,
-                "Bad request"
-            )
-        };
-
-        match process(
-            template_url.unwrap().as_str(),
-            data_url.unwrap().as_str()
-        ) {
-            Ok(body) => cgi::html_response(http::StatusCode::OK, body),
+#[inline]
+fn monadic<T> (body: T) -> impl FnOnce(cgi::Request) -> cgi::Response
+where T: FnOnce(cgi::Request) -> Cgi<String>,
+{
+    |req: cgi::Request| -> cgi::Response {
+        match body(req) {
+            Ok(html) => cgi::html_response(http::StatusCode::OK, html),
             Err(res) => cgi::text_response(res.status_code, res.body)
         }
-    }})
+    }
+}
+
+#[inline]
+fn get_content_type(headers: &http::HeaderMap) -> Cgi<&str> {
+    let value =
+        headers.get(http::header::CONTENT_TYPE)
+        .or(headers.get(X_CGI_CONTENT_TYPE));
+    if value.is_none() {
+        Ok("")
+    } else {
+        let ct_value = value.unwrap().to_str().map_err(|_| {
+            CgiResult { status_code: http::StatusCode::BAD_REQUEST, body: "Bad request".to_string() }
+        })?;
+        Ok(ct_value)
+    }
+}
+
+fn main() {
+    cgi::handle(monadic(|request: cgi::Request| -> Cgi<String> {
+        let params: Params = match *request.method() {
+            http::Method::GET => Params::from_urlencoded(request.uri().query().unwrap_or(""))?,
+            http::Method::POST => {
+                let content_type = get_content_type(request.headers())?;
+                if content_type.is_empty() || content_type == "application/json" {
+                    Params::from_json_body(request.body())?
+                } else if content_type == "application/x-www-form-urlencoded" {
+                    Params::from_form_body(request.body())?
+                } else {
+                    return Err(bad_media())
+                }
+            },
+            _ => return Err(CgiResult {
+                status_code: http::StatusCode::METHOD_NOT_ALLOWED,
+                body: "Method not allowed".to_string()
+            })
+        };
+        params.process()
+    }))
 }
