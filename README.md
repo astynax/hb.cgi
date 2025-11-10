@@ -13,4 +13,4 @@ Also you can POST the same stuff either form-encoded or in JSON body with foreme
 
 ## Examples
 
-[](Makefile) runs the `lighttpd` as a server which then serves all the stuff from the [](dev/) folder. One can just open [](http://localhost:8000/) and click some buttons. The code here is pretty self-explanatory, so you're welcome to play with!
+[Makefile](Makefile) runs the `lighttpd` as a server which then serves all the stuff from the [dev/](dev/) folder. One can just open http://localhost:8000/ and click some buttons. The code here is pretty self-explanatory, so you're welcome to play with!
