@@ -1,16 +1,40 @@
 <html>
   <body>
-    <form method="GET" action="hb.cgi">
-      <label>
-        Template URL:
-        <input name="t" value="http://localhost:8000/example.html">
-      </label>
-      <label>
-        Data URL:
-        <input name="d" value="http://localhost:8000/example.json">
-      </label>
-      <button type="submit">Go</button>
-    </form>
+    <section>
+      <header>
+        <h2>Just GET</h2>
+      </header>
+      <form method="GET" action="hb.cgi">
+        <label>
+          Template URL:
+          <input name="t" value="http://localhost:8000/greetings.html">
+        </label>
+        <label>
+          Data URL:
+          <input name="d" value="http://localhost:8000/greetings.json">
+        </label>
+        <button type="submit">Go</button>
+      </form>
+    </section>
+    <section>
+      <header>
+        <h2>POST query-encoded JSON</h2>
+      </header>
+      <form method="GET" action="hb.cgi">
+        <label>
+          Template URL:
+          <input name="t" value="http://localhost:8000/greeting.html">
+        </label>
+        <label>
+          Data URL:
+          <input name="d" value="http://localhost:8000/echo.cgi">
+        </label>
+        <label>
+          Data request body (JSON):
+          <input name="b" value='{"greeting": "Hello", "who": "world"}'>
+        </label>
+        <button type="submit">Go</button>
+      </form>
+    </section>
   </body>
 </html>
-

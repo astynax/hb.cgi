@@ -8,7 +8,7 @@ dev/lighttpd.conf: dev/lighttpd.conf.template
 	m4 -D xROOT="$(root)" $< > $@
 
 dev/hb.cgi: target/debug/hb-cgi
-	ln -s $< $@
+	@true
 
 target/debug/hb-cgi: Cargo.toml src/main.rs
 	cargo build

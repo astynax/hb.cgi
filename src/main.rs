@@ -13,6 +13,7 @@ fn get_param(url: &url::Parse, name: &str) -> Option<String> {
     url.clone()
         .find(|(k, _)| k == name)
         .map(|(_, v)| v.into_owned())
+        .and_then(|s| if s.is_empty() { None } else { Some(s) })
 }
 
 struct CgiResult {
@@ -23,7 +24,10 @@ struct CgiResult {
 type Cgi<T> = Result<T, CgiResult>;
 
 fn fetch(agent: &ureq::Agent, url: &str) -> Cgi<http::Response<ureq::Body>> {
-    agent.get(url).call().to_cgi()
+    agent.get(url)
+        .header("Accept", "application/json")
+        .call()
+        .to_cgi()
 }
 
 trait ToCgi<T> {
@@ -59,7 +63,8 @@ impl <T> ToCgi<T> for Result<T, handlebars::RenderError> {
     }
 }
 
-fn process(template_url: &str, data_url: &str) -> Cgi<String> {
+fn process(template_url: &str, data_url: &str)
+           -> Cgi<String> {
     let agent = prepare_agent();
     let template = fetch(&agent, template_url)?
         .body_mut().read_to_string().to_cgi()?;
@@ -80,9 +85,9 @@ fn prepare_agent() -> ureq::Agent {
 
 fn main() {
     cgi::handle({ |request: cgi::Request| -> cgi::Response {
-        if request.method() != cgi::http::Method::GET {
+        if request.method() != http::Method::GET {
             return cgi::text_response(
-                cgi::http::StatusCode::METHOD_NOT_ALLOWED,
+                http::StatusCode::METHOD_NOT_ALLOWED,
                 "Method not allowed"
             )
         };
@@ -97,6 +102,7 @@ fn main() {
                 "Bad request"
             )
         };
+
         match process(
             template_url.unwrap().as_str(),
             data_url.unwrap().as_str()
