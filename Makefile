@@ -1,4 +1,5 @@
 root := $(shell pwd)
+image := "hb-cgi-builder"
 
 .PHONY: server
 server: dev/hb.cgi dev/lighttpd.conf
@@ -16,3 +17,16 @@ target/debug/hb-cgi: Cargo.toml src/main.rs
 .PHONY: clean
 clean:
 	rm -v -f dev/lighttpd.conf dev/hb.cgi
+
+.PHONY:
+builder:
+	docker build -t $(image) .
+
+.PHONY: release
+release: Cargo.toml src/main.rs
+	docker run --rm --user "$(id -u)":"$(id -g)" \
+		-v "$(root)":/usr/src/myapp:ro \
+		-v "$(root)/release/target":/work:rw \
+		-w /usr/src/myapp \
+		$(image) \
+		cargo build --release --target-dir=/work
