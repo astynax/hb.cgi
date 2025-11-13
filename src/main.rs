@@ -27,9 +27,15 @@ struct CgiResult {
 
 type Cgi<T> = Result<T, CgiResult>;
 
-fn fetch(agent: &ureq::Agent, url: &str) -> Cgi<http::Response<ureq::Body>> {
+const USER_AGENT: &str = "MyCGIClient/1.0";
+const CT_FOR_DATA: &str = "application/json";
+const CT_FOR_TEMPLATE: &str = "text/html,text/plain";
+
+fn fetch(agent: &ureq::Agent, url: &str, accept: &str) -> Cgi<http::Response<ureq::Body>> {
+    eprintln!("Fetching: {:?}", url);
     agent.get(url)
-        .header("Accept", "application/json")
+        .header(http::header::ACCEPT, accept)
+        .header(http::header::USER_AGENT, USER_AGENT)
         .call()
         .to_cgi()
 }
@@ -38,11 +44,12 @@ trait ToCgi<T> {
     fn to_cgi(self) -> Cgi<T>;
 }
 
-fn bad_media() -> CgiResult {
-    CgiResult {
+#[inline]
+fn bad_media<T>() -> Cgi<T> {
+    Err(CgiResult {
         status_code: http::StatusCode::UNSUPPORTED_MEDIA_TYPE,
         body: "Request body should be a UTF-8 encoded JSON/Form data".to_string(),
-    }
+    })
 }
 
 impl <T> ToCgi<T> for Result<T, ureq::Error> {
@@ -54,6 +61,7 @@ impl <T> ToCgi<T> for Result<T, ureq::Error> {
                     body: err.to_string()
                 }
             } else {
+                eprintln!("ureq error: {:?}", err);
                 CgiResult {
                     status_code: http::StatusCode::INTERNAL_SERVER_ERROR,
                     body: "Something went wrong".to_string(),
@@ -76,7 +84,7 @@ impl <T> ToCgi<T> for Result<T, handlebars::RenderError> {
 
 impl <T> ToCgi<T> for Result<T, std::str::Utf8Error> {
     fn to_cgi(self) -> Cgi<T> {
-        self.map_err(|_| bad_media())
+        self.or(bad_media())
     }
 }
 
@@ -103,9 +111,9 @@ impl Params {
     fn process(self)
                -> Cgi<String> {
         let agent = prepare_agent();
-        let template = fetch(&agent, self.template_url.as_str())?
+        let template = fetch(&agent, self.template_url.as_str(), CT_FOR_TEMPLATE)?
             .body_mut().read_to_string().to_cgi()?;
-        let data = fetch(&agent, self.data_url.as_str())?
+        let data = fetch(&agent, self.data_url.as_str(), CT_FOR_DATA)?
             .body_mut().read_json::<serde_json::Value>().to_cgi()?;
         let hb = handlebars::Handlebars::new();
         hb.render_template(template.as_str(), &data).to_cgi()
@@ -178,18 +186,21 @@ fn get_content_type(headers: &http::HeaderMap) -> Cgi<&str> {
     }
 }
 
+const X_FORM: &str = "application/x-www-form-urlencoded";
+
 fn main() {
     cgi::handle(monadic(|request: cgi::Request| -> Cgi<String> {
         let params: Params = match *request.method() {
             http::Method::GET => Params::from_urlencoded(request.uri().query().unwrap_or(""))?,
             http::Method::POST => {
                 let content_type = get_content_type(request.headers())?;
+
                 if content_type.is_empty() || content_type == "application/json" {
                     Params::from_json_body(request.body())?
-                } else if content_type == "application/x-www-form-urlencoded" {
+                } else if content_type == X_FORM {
                     Params::from_form_body(request.body())?
                 } else {
-                    return Err(bad_media())
+                    return bad_media()
                 }
             },
             _ => return Err(CgiResult {
