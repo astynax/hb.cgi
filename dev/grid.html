@@ -1,0 +1,37 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Grid</title>
+    <meta charset="utf-8" />
+    <style>
+      table {
+        -webkit-border-horizontal-spacing: 0px;
+        -webkit-border-vertical-spacing: 0px;
+      }
+      table > tbody > tr > td {
+        width: 50px;
+        height: 50px;
+        padding: 0;
+      }
+
+      {{ #each palette }}
+      .color-{{ @key }} {
+        background-color: {{ this }};
+      }
+      {{ /each }}
+    </style>
+  </head>
+  <body>
+    <table>
+      <tbody>
+        {{ #each image }}
+        <tr>
+          {{ #each this }}
+          <td class="color-{{ this }}">&nbsp;</td>
+          {{ /each }}
+        </tr>
+        {{ /each }}
+      </tbody>
+    </table>
+  </body>
+</html>
