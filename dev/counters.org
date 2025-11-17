@@ -38,3 +38,32 @@ echo "$input" | jq '.counters.[0].value += 1'
 #+BEGIN_SRC shell
 echo "$input" | jq 'del(.counters.[1])'
 #+END_SRC
+
+* diagram
+
+#+BEGIN_SRC plantuml
+@startuml
+
+skinparam responseMessageBelowArrow true
+
+group First visit
+Browser -> Server: GET /counters.cgi
+note left: Protocol&host\nare hidden here\njust for the\nsimplicity
+Browser <- Server: 307 Redirect Temporarly\nLocation: /hb.cgi\n\t?t=counters.html\n\t&d=/jq.cgi\n\t\t?u={}\n\t\t&q=.
+note right: jq.cgi call is\nadditionally\nurlencoded
+Browser -> Server: GET /hb.cgi?...
+Browser <- Server: HTML
+end group
+
+group Interaction
+Browser -> Server: GET /counters.cgi\n\t?s={...}\n\t&q=.counters.[0]+=1
+note left: Any action\npasses all\nthe state
+Browser <- Server: 307 Redirect Temporarly\nLocation: /hb.cgi?...
+Browser -> Server: GET /hb.cgi?...
+Browser <- Server: HTML
+end group
+
+@enduml
+#+END_SRC
+
+[[file:counters.png]]
