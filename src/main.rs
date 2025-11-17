@@ -107,6 +107,21 @@ struct Params {
     data_url: String,
 }
 
+fn to_json_helper<'reg, 'rc>(
+    h: &handlebars::Helper<'rc>,
+    _: &'reg handlebars::Handlebars,
+    _: &'rc handlebars::Context,
+    _: &mut handlebars::RenderContext<'reg, 'rc>,
+    out: &mut dyn handlebars::Output,
+) -> handlebars::HelperResult {
+    let datum: &serde_json::Value = match h.param(0) {
+        None => return Ok(()),
+        Some(p_and_v) => p_and_v.value(),
+    };
+    let raw = serde_json::to_string(&datum).unwrap();
+    out.write(raw.as_str()).map_err(handlebars::RenderError::from)
+}
+
 impl Params {
     fn process(self)
                -> Cgi<String> {
@@ -115,7 +130,8 @@ impl Params {
             .body_mut().read_to_string().to_cgi()?;
         let data = fetch(&agent, self.data_url.as_str(), CT_FOR_DATA)?
             .body_mut().read_json::<serde_json::Value>().to_cgi()?;
-        let hb = handlebars::Handlebars::new();
+        let mut hb = handlebars::Handlebars::new();
+        hb.register_helper("to_json", Box::new(to_json_helper));
         hb.render_template(template.as_str(), &data).to_cgi()
     }
 
