@@ -1,0 +1,40 @@
+# Local Variables:
+# org-confirm-babel-evaluate: nil
+# End:
+
+* /setup/
+#+NAME: input
+#+BEGIN_example yaml
+counters:
+ - value: 0
+ - value: 5
+ - value: 10
+#+END_example
+
+#+NAME: json
+#+BEGIN_SRC shell :var input=input :results raw :wrap example
+echo "$input" | rq -yJ
+#+END_SRC
+
+* actions
+:PROPERTIES:
+:header-args:shell: :var input=json :results raw :wrap example
+:END:
+
+** appending
+
+#+BEGIN_SRC shell
+echo "$input" | jq '.counters += [{"value": 0}]'
+#+END_SRC
+
+** changing
+
+#+BEGIN_SRC shell
+echo "$input" | jq '.counters.[0].value += 1'
+#+END_SRC
+
+** deletion
+
+#+BEGIN_SRC shell
+echo "$input" | jq 'del(.counters.[1])'
+#+END_SRC

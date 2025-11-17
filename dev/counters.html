@@ -1,0 +1,46 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Counters</title>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="styles.css" type="text/css" media="screen" />
+    <style>
+      body {
+        font-size: x-large;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <a href="/">← go back</a>
+    </header>
+    <h1>Counters</h1>
+    {{ #with this as |root| }}
+    {{ #each counters }}
+    <div class="counter">
+      <span>{{ value }}</span>
+      <form action="counters.cgi" style="display: inline-block">
+        <input type="hidden" name="s" value='{{ to_json root }}'>
+        <input type="hidden" name="q" value='.counters.[{{ @index }}].value+=1'>
+        <button type="submit">+</button>
+      </form>
+      <form action="counters.cgi" style="display: inline-block">
+        <input type="hidden" name="s" value='{{ to_json root }}'>
+        <input type="hidden" name="q" value='.counters.[{{ @index }}].value-=1'>
+        <button type="submit">-</button>
+      </form>
+      <form action="counters.cgi" style="display: inline-block">
+        <input type="hidden" name="s" value='{{ to_json root }}'>
+        <input type="hidden" name="q" value='del(.counters.[{{ @index }}])'>
+        <button type="submit">X</button>
+      </form>
+    </div>
+    {{ /each }}
+    <form action="counters.cgi">
+      <input type="hidden" name="s" value='{{ to_json root }}'>
+      <input type="hidden" name="q" value='.counters+=[{"value":0}]'>
+      <button type="submit">add</button>
+    </form>
+    {{ /with }}
+  </body>
+</html>
