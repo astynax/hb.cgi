@@ -57,7 +57,9 @@ impl <T> ToCgi<T> for Result<T, ureq::Error> {
         self.map_err(|err| {
             if let ureq::Error::StatusCode(code) = err {
                 CgiResult {
-                    status_code: http::StatusCode::from_u16(code).unwrap(),
+                    status_code: http::StatusCode::from_u16(code).unwrap_or_else(
+                        |_| panic!("u16 should be always correct here")
+                    ),
                     body: err.to_string()
                 }
             } else {
@@ -99,6 +101,14 @@ impl <T> ToCgi<T> for Result<T, serde_json::Error> {
     }
 }
 
+#[inline]
+fn bad_request<T>() -> Cgi<T> {
+    Err(CgiResult {
+        status_code: cgi::http::StatusCode::BAD_REQUEST,
+        body: "Bad request".to_string(),
+    })
+}
+
 #[derive(serde::Deserialize)]
 struct Params {
     #[serde(rename(deserialize = "t"))]
@@ -118,7 +128,9 @@ fn to_json_helper<'reg, 'rc>(
         None => return Ok(()),
         Some(p_and_v) => p_and_v.value(),
     };
-    let raw = serde_json::to_string(&datum).unwrap();
+    let raw = serde_json::to_string(&datum).unwrap_or_else(
+        |_| panic!("serde_json.Value should be serializable")
+    );
     out.write(raw.as_str()).map_err(handlebars::RenderError::from)
 }
 
@@ -138,18 +150,9 @@ impl Params {
     #[inline]
     fn from_urlencoded(query: &str) -> Cgi<Params> {
         let params = url::parse(query.as_bytes());
-        let template_url = get_param(&params, "t");
-        let data_url = get_param(&params, "d");
-        if template_url.is_none() || data_url.is_none() {
-            return Err(CgiResult {
-                status_code: cgi::http::StatusCode::BAD_REQUEST,
-                body: "Bad request".to_string(),
-            });
-        };
-        Ok(Params {
-            template_url: template_url.unwrap(),
-            data_url: data_url.unwrap(),
-        })
+        let template_url = require(get_param(&params, "t"))?;
+        let data_url = require(get_param(&params, "d"))?;
+        Ok(Params { template_url, data_url, })
     }
 
     #[inline]
@@ -164,6 +167,12 @@ impl Params {
         let decoded = std::str::from_utf8(body).to_cgi()?;
         Params::from_urlencoded(decoded)
     }
+}
+
+#[inline]
+fn require<T>(arg: Option<T>) -> Cgi<T> {
+    arg.map(|value| Ok(value))
+        .unwrap_or_else(bad_request)
 }
 
 #[inline]
@@ -192,13 +201,11 @@ fn get_content_type(headers: &http::HeaderMap) -> Cgi<&str> {
     let value =
         headers.get(http::header::CONTENT_TYPE)
         .or(headers.get(X_CGI_CONTENT_TYPE));
-    if value.is_none() {
-        Ok("")
-    } else {
-        let ct_value = value.unwrap().to_str().map_err(|_| {
-            CgiResult { status_code: http::StatusCode::BAD_REQUEST, body: "Bad request".to_string() }
-        })?;
-        Ok(ct_value)
+    match value {
+        None => Ok(""),
+        Some(ct) => {
+            ct.to_str().or(bad_request())
+        }
     }
 }
 
